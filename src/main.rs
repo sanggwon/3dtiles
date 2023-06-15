@@ -100,21 +100,9 @@ fn main() {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("elevation")
-                .long("elevation")
-                .help("Set the shapefile elevation field")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("lon")
-                .long("lon")
-                .help("Set the shapefile lon field")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("lat")
-                .long("lat")
-                .help("Set the shapefile lat field")
+            Arg::with_name("default_height")
+                .long("default_height")
+                .help("Set the default_height")
                 .takes_value(true),
         )
         .arg(
@@ -134,6 +122,7 @@ fn main() {
     let elevation_field = matches.value_of("elevation").unwrap_or("");
     let lon_field = matches.value_of("lon").unwrap_or("");
     let lat_field = matches.value_of("lat").unwrap_or("");
+    let default_height = matches.value_of("default_height").unwrap_or("");
 
     if matches.is_present("verbose") {
         info!("set program versose on");
@@ -148,7 +137,7 @@ fn main() {
             convert_osgb(input, output, tile_config);
         }
         "shape" => {
-            convert_shapefile(input, output, height_field, elevation_field, lon_field, lat_field);
+            convert_shapefile(input, output, default_height);
         }
         "gltf" => {
             convert_gltf(input, output);
@@ -402,14 +391,10 @@ fn convert_osgb(src: &str, dest: &str, config: &str) {
     info!("task over, cost {:.2} s.", tick_num);
 }
 
-fn convert_shapefile(src: &str, dest: &str, height: &str, elevation: &str, lon: &str, lat: &str) {
-    if height.is_empty() {
-        error!("you must set the height field by --height xxx");
-        return;
-    }
+fn convert_shapefile(src: &str, dest: &str, default_height: &str) {
     let tick = std::time::SystemTime::now();
 
-    let ret = shape::shape_batch_convert(src, dest, height, elevation, lon, lat);
+    let ret = shape::shape_batch_convert(src, dest, default_height);
     if !ret {
         error!("convert shapefile failed");
     } else {

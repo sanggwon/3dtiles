@@ -182,11 +182,7 @@ struct Polygon_Mesh
     Vextex vertex;
     Index  index;
     Normal normal;
-    // add some addition 
-    float height;
-    float elevation;
-    float lon;
-    float lat;
+    std::map<std::string, std::string> dynamic_variables;
 };
 
 osg::ref_ptr<osg::Geometry> make_triangle_mesh_auto(Polygon_Mesh& mesh) {
@@ -253,7 +249,7 @@ void calc_normal(int baseCnt, int ptNum, Polygon_Mesh &mesh)
 
 #ifdef _WIN32
 Polygon_Mesh
-convert_polygon(OGRPolygon* polyon, double center_x, double center_y, double height)
+convert_polygon(OGRPolygon* polyon, double center_x, double center_y, double height, double default_height)
 {
     //double bottom = 0.0;
     Polygon_Mesh mesh;
@@ -270,11 +266,11 @@ convert_polygon(OGRPolygon* polyon, double center_x, double center_y, double hei
         float point_x = (float)longti_to_meter(degree2rad(pt.getX() - center_x), degree2rad(center_y));
         float point_y = (float)lati_to_meter(degree2rad(pt.getY() - center_y));
         mesh.vertex.push_back({ point_x , point_y, (float)bottom });
-        mesh.vertex.push_back({ point_x , point_y, (float)height + (float)bottom + 5 });
+        mesh.vertex.push_back({ point_x , point_y, (float)height + (float)bottom + (float)default_height });
         // double vertex
         if (i != 0 && i != ptNum - 1) {
             mesh.vertex.push_back({ point_x , point_y, (float)bottom });
-            mesh.vertex.push_back({ point_x , point_y, (float)height + (float)bottom + 5 });
+            mesh.vertex.push_back({ point_x , point_y, (float)height + (float)bottom + (float)default_height });
         }
     }
     int vertex_num = mesh.vertex.size() / 2;
@@ -301,11 +297,11 @@ convert_polygon(OGRPolygon* polyon, double center_x, double center_y, double hei
             float point_x = (float)longti_to_meter(degree2rad(pt.getX() - center_x), degree2rad(center_y));
             float point_y = (float)lati_to_meter(degree2rad(pt.getY() - center_y));
             mesh.vertex.push_back({ point_x , point_y, (float)bottom });
-            mesh.vertex.push_back({ point_x , point_y, (float)height + (float)bottom + 5});
+            mesh.vertex.push_back({ point_x , point_y, (float)height + (float)bottom + (float)default_height });
             // double vertex
             if (i != 0 && i != ptNum - 1) {
                 mesh.vertex.push_back({ point_x , point_y, (float)bottom });
-                mesh.vertex.push_back({ point_x , point_y, (float)height + (float)bottom + 5});
+                mesh.vertex.push_back({ point_x , point_y, (float)height + (float)bottom + (float)default_height });
             }
         }
         vertex_num = mesh.vertex.size() / 2 - pt_count;
@@ -334,7 +330,7 @@ convert_polygon(OGRPolygon* polyon, double center_x, double center_y, double hei
                 float point_y = (float)lati_to_meter(degree2rad(pt.getY() - center_y));
                 polygon[0].push_back({ point_x, point_y });
                 mesh.vertex.push_back({ point_x , point_y, (float)bottom});
-                mesh.vertex.push_back({ point_x , point_y, (float)height + (float)bottom + 5 });
+                mesh.vertex.push_back({ point_x , point_y, (float)height + (float)bottom + (float)default_height });
                 mesh.normal.push_back({ 0,0,-1 });
                 mesh.normal.push_back({ 0,0,1 });
             }
@@ -354,7 +350,7 @@ convert_polygon(OGRPolygon* polyon, double center_x, double center_y, double hei
                 float point_y = (float)lati_to_meter(degree2rad(pt.getY() - center_y));
                 polygon[j].push_back({ point_x, point_y });
                 mesh.vertex.push_back({ point_x , point_y, (float)bottom });
-                mesh.vertex.push_back({ point_x , point_y, (float)height + (float)bottom + 5 });
+                mesh.vertex.push_back({ point_x , point_y, (float)height + (float)bottom + (float)default_height });
                 mesh.normal.push_back({ 0,0,-1 });
                 mesh.normal.push_back({ 0,0,1 });
             }
@@ -382,29 +378,15 @@ std::string make_b3dm(std::vector<Polygon_Mesh>& meshes, bool);
 //
 extern "C" bool
 shp23dtile(const char* filename, int layer_id,
-            const char* dest, const char* height, const char* elevation, const char* lon, const char* lat)
+            const char* dest, const char* default_height)
 {
 #ifdef _WIN32
     if (!filename || layer_id < 0 || layer_id > 10000 || !dest) {
         LOG_E("make shp23dtile [%s] failed", filename);
         return false;
     }
-    std::string height_field = "";
-    if( height ) {
-        height_field = height;
-    }
-    std::string elevation_field = "";
-    if( elevation ) {
-        elevation_field = elevation;
-    }
-    std::string lon_field = "";
-    if( lon ) {
-        lon_field = lon;
-    }
-    std::string lat_field = "";
-    if( lat ) {
-        lat_field = lat;
-    }
+    std::string height_field = "height";
+
     GDALAllRegister();
     GDALDataset       *poDS;
     poDS = (GDALDataset*)GDALOpenEx(
@@ -466,32 +448,11 @@ shp23dtile(const char* filename, int layer_id,
     root.get_all(items_array);
     //
     int height_index = -1;
-    int elevation_index = -1;
-    int lon_index = -1;
-    int lat_index = -1;
     
     if (!height_field.empty()) {
         height_index = poLayer->GetLayerDefn()->GetFieldIndex(height_field.c_str());
         if (height_index == -1) {
             LOG_E("can`t found field [%s] in [%s]", height_field.c_str(), filename);
-        }
-    }
-    if (!elevation_field.empty()) {
-        elevation_index = poLayer->GetLayerDefn()->GetFieldIndex(elevation_field.c_str());
-        if (elevation_index == -1) {
-            LOG_E("can`t found field [%s] in [%s]", elevation_field.c_str(), filename);
-        }
-    }
-    if (!lon_field.empty()) {
-        lon_index = poLayer->GetLayerDefn()->GetFieldIndex(lon_field.c_str());
-        if (lon_index == -1) {
-            LOG_E("can`t found field [%s] in [%s]", lon_field.c_str(), filename);
-        }
-    }
-    if (!lat_field.empty()) {
-        lat_index = poLayer->GetLayerDefn()->GetFieldIndex(lat_field.c_str());
-        if (lat_index == -1) {
-            LOG_E("can`t found field [%s] in [%s]", lat_field.c_str(), filename);
         }
     }
     for (auto item : items_array) {
@@ -528,32 +489,40 @@ shp23dtile(const char* filename, int layer_id,
             OGRGeometry *poGeometry;
             poGeometry = poFeature->GetGeometryRef();
             double height = 50.0;
-            double elevation = 0;
-            double lon = 0;
-            double lat = 0;
             if( height_index >= 0 ) {
                 height = poFeature->GetFieldAsDouble(height_index);
             }
-            if( elevation_index >= 0 ) {
-                elevation = poFeature->GetFieldAsDouble(elevation_index);
-            }
-            if( lon_index >= 0 ) {
-                lon = poFeature->GetFieldAsDouble(lon_index);
-            }
-            if( lat_index >= 0 ) {
-                lat = poFeature->GetFieldAsDouble(lat_index);
-            }
+
             if (height > max_height) {
                 max_height = height;
             }
             if (wkbFlatten(poGeometry->getGeometryType()) == wkbPolygon) {
                 OGRPolygon* polyon = (OGRPolygon*)poGeometry;
-                Polygon_Mesh mesh = convert_polygon(polyon, center_x, center_y, height);
+                Polygon_Mesh mesh = convert_polygon(polyon, center_x, center_y, height, atof(default_height));
                 mesh.mesh_name = "mesh_" + std::to_string(id);
-                mesh.height = height;
-                mesh.elevation = elevation;
-                mesh.lon = lon;
-                mesh.lat = lat;
+
+                // 컬럼의 개수를 가져옵니다.
+                int numFields = poFeature->GetFieldCount();
+                // 각 컬럼에 대한 이름과 속성 값을 가져옵니다.
+                for (int i = 0; i < numFields; i++) {
+                    OGRFieldDefn *poFieldDefn = poFeature->GetFieldDefnRef(i);
+                    if (poFieldDefn != nullptr) {
+                        const char *fieldName = poFieldDefn->GetNameRef();
+                        // 컬럼의 데이터 형식에 따라 적절한 GetFieldAs...() 함수를 사용하여 속성 값을 가져옵니다.
+                        if (poFieldDefn->GetType() == OFTString) {
+                            const char *value = poFeature->GetFieldAsString(i);
+                            mesh.dynamic_variables[fieldName] = value;
+                        }
+                        else if (poFieldDefn->GetType() == OFTInteger) {
+                            int value = poFeature->GetFieldAsInteger(i);
+                            mesh.dynamic_variables[fieldName] = to_string(value);
+                        }
+                        else if (poFieldDefn->GetType() == OFTReal) {
+                            double value = poFeature->GetFieldAsDouble(i);
+                            mesh.dynamic_variables[fieldName] = to_string(value);
+                        }
+                    }
+                }
                 v_meshes.push_back(mesh);
             }
             else if (wkbFlatten(poGeometry->getGeometryType()) == wkbMultiPolygon) {
@@ -561,9 +530,30 @@ shp23dtile(const char* filename, int layer_id,
                 int sub_count = _multi->getNumGeometries();
                 for (int j = 0; j < sub_count; j++) {
                     OGRPolygon * polyon = (OGRPolygon*)_multi->getGeometryRef(j);
-                    Polygon_Mesh mesh = convert_polygon(polyon, center_x, center_y, height);
+                    Polygon_Mesh mesh = convert_polygon(polyon, center_x, center_y, height, atof(default_height));
                     mesh.mesh_name = "mesh_" + std::to_string(id);
-                    mesh.height = height;
+                    // 컬럼의 개수를 가져옵니다.
+                    int numFields = poFeature->GetFieldCount();
+                    // 각 컬럼에 대한 이름과 속성 값을 가져옵니다.
+                    for (int i = 0; i < numFields; i++) {
+                        OGRFieldDefn *poFieldDefn = poFeature->GetFieldDefnRef(i);
+                        if (poFieldDefn != nullptr) {
+                            const char *fieldName = poFieldDefn->GetNameRef();
+                            // 컬럼의 데이터 형식에 따라 적절한 GetFieldAs...() 함수를 사용하여 속성 값을 가져옵니다.
+                            if (poFieldDefn->GetType() == OFTString) {
+                                const char *value = poFeature->GetFieldAsString(i);
+                                mesh.dynamic_variables[fieldName] = value;
+                            }
+                            else if (poFieldDefn->GetType() == OFTInteger) {
+                                int value = poFeature->GetFieldAsInteger(i);
+                                mesh.dynamic_variables[fieldName] = to_string(value);
+                            }
+                            else if (poFieldDefn->GetType() == OFTReal) {
+                                double value = poFeature->GetFieldAsDouble(i);
+                                mesh.dynamic_variables[fieldName] = to_string(value);
+                            }
+                        }
+                    }
                     v_meshes.push_back(mesh);
                 }
             }
@@ -865,41 +855,28 @@ std::string make_b3dm(std::vector<Polygon_Mesh>& meshes, bool with_height = fals
     
     json batch_json;
     std::vector<int> ids;
+    std::vector<std::string> names;
+    std::map<std::string, std::vector<std::string>> value_map;
+
     for (int i = 0; i < meshes.size(); ++i) {
         ids.push_back(i);
-    }
-    std::vector<std::string> names;
-    for (int i = 0; i < meshes.size(); ++i) {
         names.push_back(meshes[i].mesh_name);
+
+        for (const auto& pair : meshes[i].dynamic_variables) {
+            const std::string& key = pair.first;
+            const std::string& value = pair.second;
+            value_map[key].push_back(value);
+        }
     }
+    
+    for (const auto& pair : value_map) {
+        const std::string& key = pair.first;
+        const std::vector<std::string>& values = pair.second;
+        batch_json[key] = values;
+    }
+
     batch_json["batchId"] = ids;
     batch_json["name"] = names;
-
-    if (with_height) {
-        std::vector<float> heights;
-        for (int i = 0; i < meshes.size(); ++i) {
-            heights.push_back(meshes[i].height);
-        }
-        batch_json["height"] = heights;
-    }
-
-    std::vector<float> elevations;
-    for (int i = 0; i < meshes.size(); ++i) {
-        elevations.push_back(meshes[i].elevation);
-    }
-    batch_json["elevation"] = elevations;
-
-    std::vector<float> lons;
-    for (int i = 0; i < meshes.size(); ++i) {
-        lons.push_back(meshes[i].lon);
-    }
-    batch_json["lon"] = lons;
-
-    std::vector<float> lats;
-    for (int i = 0; i < meshes.size(); ++i) {
-        lats.push_back(meshes[i].lat);
-    }
-    batch_json["lat"] = lats;
 
     std::string batch_json_string = batch_json.dump();
     while (batch_json_string.size() % 4 != 0 ) {

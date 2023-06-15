@@ -1,5 +1,5 @@
 extern "C" {
-    fn shp23dtile(name: *const u8, layer: i32, dest: *const u8, height: *const u8, elevation: *const u8, lon: *const u8, lat: *const u8) -> bool;
+    fn shp23dtile(name: *const u8, layer: i32, dest: *const u8, default_height: *const u8) -> bool;
 }
 
 use std::fs;
@@ -29,28 +29,19 @@ fn walk_path(dir: &Path, cb: &mut dyn FnMut(&str)) -> io::Result<()> {
     Ok(())
 }
 
-pub fn shape_batch_convert(from: &str, to: &str, height: &str, elevation: &str, lon: &str, lat: &str) -> bool {
+pub fn shape_batch_convert(from: &str, to: &str, default_height: &str) -> bool {
     unsafe {
         let mut source_vec = String::from(from);
         source_vec.push('\0');
         let mut dest_vec = String::from(to);
         dest_vec.push('\0');
-        let mut height_vec = String::from(height);
-        height_vec.push('\0');
-        let mut elevation_vec = String::from(elevation);
-        elevation_vec.push('\0');
-        let mut lon_vec = String::from(lon);
-        lon_vec.push('\0');
-        let mut lat_vec = String::from(lat);
-        lat_vec.push('\0');
+        let mut default_height_vec = String::from(default_height);
+        default_height_vec.push('\0');
         let res = shp23dtile(
             source_vec.as_ptr(),
             0,
             dest_vec.as_ptr(),
-            height_vec.as_ptr(),
-            elevation_vec.as_ptr(),
-            lon_vec.as_ptr(),
-            lat_vec.as_ptr(),
+            default_height_vec.as_ptr()
         );
         if !res {
             return res;

@@ -182,7 +182,7 @@ struct Polygon_Mesh
     Vextex vertex;
     Index  index;
     Normal normal;
-    std::map<std::string, std::string> dynamic_variables;
+    nlohmann::json mesh_json;
 };
 
 osg::ref_ptr<osg::Geometry> make_triangle_mesh_auto(Polygon_Mesh& mesh) {
@@ -500,7 +500,6 @@ shp23dtile(const char* filename, int layer_id,
                 OGRPolygon* polyon = (OGRPolygon*)poGeometry;
                 Polygon_Mesh mesh = convert_polygon(polyon, center_x, center_y, height, atof(default_height));
                 mesh.mesh_name = "mesh_" + std::to_string(id);
-
                 // 컬럼의 개수를 가져옵니다.
                 int numFields = poFeature->GetFieldCount();
                 // 각 컬럼에 대한 이름과 속성 값을 가져옵니다.
@@ -508,19 +507,8 @@ shp23dtile(const char* filename, int layer_id,
                     OGRFieldDefn *poFieldDefn = poFeature->GetFieldDefnRef(i);
                     if (poFieldDefn != nullptr) {
                         const char *fieldName = poFieldDefn->GetNameRef();
-                        // 컬럼의 데이터 형식에 따라 적절한 GetFieldAs...() 함수를 사용하여 속성 값을 가져옵니다.
-                        if (poFieldDefn->GetType() == OFTString) {
-                            const char *value = poFeature->GetFieldAsString(i);
-                            mesh.dynamic_variables[fieldName] = value;
-                        }
-                        else if (poFieldDefn->GetType() == OFTInteger) {
-                            int value = poFeature->GetFieldAsInteger(i);
-                            mesh.dynamic_variables[fieldName] = to_string(value);
-                        }
-                        else if (poFieldDefn->GetType() == OFTReal) {
-                            double value = poFeature->GetFieldAsDouble(i);
-                            mesh.dynamic_variables[fieldName] = to_string(value);
-                        }
+                        const char *value = poFeature->GetFieldAsString(i);
+                        mesh.mesh_json[fieldName] = value;
                     }
                 }
                 v_meshes.push_back(mesh);
@@ -539,19 +527,8 @@ shp23dtile(const char* filename, int layer_id,
                         OGRFieldDefn *poFieldDefn = poFeature->GetFieldDefnRef(i);
                         if (poFieldDefn != nullptr) {
                             const char *fieldName = poFieldDefn->GetNameRef();
-                            // 컬럼의 데이터 형식에 따라 적절한 GetFieldAs...() 함수를 사용하여 속성 값을 가져옵니다.
-                            if (poFieldDefn->GetType() == OFTString) {
-                                const char *value = poFeature->GetFieldAsString(i);
-                                mesh.dynamic_variables[fieldName] = value;
-                            }
-                            else if (poFieldDefn->GetType() == OFTInteger) {
-                                int value = poFeature->GetFieldAsInteger(i);
-                                mesh.dynamic_variables[fieldName] = to_string(value);
-                            }
-                            else if (poFieldDefn->GetType() == OFTReal) {
-                                double value = poFeature->GetFieldAsDouble(i);
-                                mesh.dynamic_variables[fieldName] = to_string(value);
-                            }
+                            const char *value = poFeature->GetFieldAsString(i);
+                            mesh.mesh_json[fieldName] = value;
                         }
                     }
                     v_meshes.push_back(mesh);
@@ -856,28 +833,21 @@ std::string make_b3dm(std::vector<Polygon_Mesh>& meshes, bool with_height = fals
     json batch_json;
     std::vector<int> ids;
     std::vector<std::string> names;
-    std::map<std::string, std::vector<std::string>> value_map;
 
     for (int i = 0; i < meshes.size(); ++i) {
         ids.push_back(i);
         names.push_back(meshes[i].mesh_name);
 
-        for (const auto& pair : meshes[i].dynamic_variables) {
-            const std::string& key = pair.first;
-            const std::string& value = pair.second;
-            value_map[key].push_back(value);
+        for (auto it = meshes[i].mesh_json.begin(); it != meshes[i].mesh_json.end(); ++it) {
+            const std::string& key = it.key();
+            const auto& value = it.value();
+            batch_json[key].push_back(value);
         }
-    }
-    
-    for (const auto& pair : value_map) {
-        const std::string& key = pair.first;
-        const std::vector<std::string>& values = pair.second;
-        batch_json[key] = values;
     }
 
     batch_json["batchId"] = ids;
     batch_json["name"] = names;
-
+    
     std::string batch_json_string = batch_json.dump();
     while (batch_json_string.size() % 4 != 0 ) {
         batch_json_string.push_back(' ');

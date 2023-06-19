@@ -94,12 +94,6 @@ fn main() {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("height")
-                .long("height")
-                .help("Set the shapefile height field")
-                .takes_value(true),
-        )
-        .arg(
             Arg::with_name("default_height")
                 .long("default_height")
                 .help("Set the default_height")
@@ -118,10 +112,6 @@ fn main() {
     let output = matches.value_of("output").unwrap();
     let format = matches.value_of("format").unwrap();
     let tile_config = matches.value_of("config").unwrap_or("");
-    let height_field = matches.value_of("height").unwrap_or("");
-    let elevation_field = matches.value_of("elevation").unwrap_or("");
-    let lon_field = matches.value_of("lon").unwrap_or("");
-    let lat_field = matches.value_of("lat").unwrap_or("");
     let default_height = matches.value_of("default_height").unwrap_or("");
 
     if matches.is_present("verbose") {
